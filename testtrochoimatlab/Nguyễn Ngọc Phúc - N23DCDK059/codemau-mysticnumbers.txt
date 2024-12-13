@@ -1,0 +1,353 @@
+classdef MysticNumbers < matlab.apps.AppBase
+
+    % Properties that correspond to app components
+    properties (Access = public)
+        UIFigure                    matlab.ui.Figure
+        NguynNgcPhcN23DCDK059D23CQDK01NButton  matlab.ui.control.Button
+        Image                       matlab.ui.control.Image
+        HintLabel                   matlab.ui.control.TextArea
+        GuessLimitLabel             matlab.ui.control.Label
+        HintsTextArea               matlab.ui.control.TextArea
+        RemainingguessesLabel       matlab.ui.control.Label
+        MysticPathDropDown          matlab.ui.control.DropDown
+        MysticPathDropDownLabel     matlab.ui.control.Label
+        ReigniteQuestButton         matlab.ui.control.Button
+        GuessnowButton              matlab.ui.control.Button
+        EnteranumberEditField       matlab.ui.control.NumericEditField
+        EnteranumberEditFieldLabel  matlab.ui.control.Label
+        MYSTICNUMBERSLabel          matlab.ui.control.Label
+    end
+
+ properties (Access = private)
+         BackgroundMusic % Đối tượng phát nhạc nền
+        SecretNumber % Số bí ẩn do máy tính tạo
+        GuessCount = 10 % Số lần đoán còn lại
+        MaxGuesses = 10 % Giới hạn số lần đoán
+        RangeMin % Giá trị nhỏ nhất của khoảng đoán
+        RangeMax % Giá trị lớn nhất của khoảng đoán
+        HintsGivenCount = 0 % Số lượng gợi ý đã hiển thị
+        HintStep = 1 % Bước để xác định gợi ý tiếp theo
+        
+    end
+
+    methods (Access = private)
+ % Hàm phát nhạc nền
+        function playBackgroundMusic(app)
+            [y, Fs] = audioread('mystic_theme.mp3'); % Đọc file nhạc nền
+            app.BackgroundMusic = audioplayer(y, Fs); % Tạo đối tượng phát nhạc
+            play(app.BackgroundMusic, [1, Fs * 30]); % Phát 30 giây đầu
+        end
+
+        % Hàm phát hiệu ứng âm thanh
+        function playSoundEffect(~, fileName)
+            [y, Fs] = audioread(fileName); % Đọc file âm thanh
+            sound(y, Fs); % Phát âm thanh
+        end
+        % Hàm để cập nhật các gợi ý về số bí ẩn và hiển thị trong HintLabel
+function updateHintDetails(app)
+    hints = {}; % Tạo mảng chứa các gợi ý
+
+    % Gợi ý 1: Kiểm tra số bí ẩn chẵn hay lẻ
+    if mod(app.SecretNumber, 2) == 0
+        hints{end + 1} = 'Số bí ẩn là một số chẵn.';
+    else
+        hints{end + 1} = 'Số bí ẩn là một số lẻ.';
+    end
+
+    % Gợi ý 2-4: Kiểm tra chia hết cho các số cơ bản
+    divisors = [3, 5, 7];
+    for i = 1:length(divisors)
+        if mod(app.SecretNumber, divisors(i)) == 0
+            hints{end + 1} = sprintf('Số bí ẩn chia hết cho %d.', divisors(i));
+        end
+    end
+
+    % Gợi ý 5: Tính tổng các chữ số của số bí ẩn
+    digitsSum = sum(str2double(regexp(num2str(app.SecretNumber), '\d', 'match')));
+    hints{end + 1} = sprintf('Tổng các chữ số của số bí ẩn là %d.', digitsSum);
+
+    % Kiểm tra nếu `HintStep` chưa vượt quá số lượng gợi ý
+    if app.HintStep <= length(hints)
+        % Thêm gợi ý mới vào danh sách các gợi ý đã có
+        currentHints = app.HintLabel.Value;
+        app.HintLabel.Value = [currentHints; {hints{app.HintStep}}];
+        app.HintStep = app.HintStep + 1; % Tăng `HintStep` để hiển thị gợi ý tiếp theo
+    end
+end
+
+
+        % Cập nhật số lượt đoán còn lại
+        function updateGuessCountDisplay(app)
+            app.RemainingguessesLabel.Text = sprintf('Lượt đoán còn lại: %d', app.GuessCount);
+        end
+
+        % Hàm để cập nhật Text Area với gợi ý mới (nếu cần)
+        function updateHintsDisplay(app, hintText)
+            currentHints = app.HintsTextArea.Value;
+            newHints = [currentHints; {hintText}];
+            app.HintsTextArea.Value = newHints;
+        end
+
+        % Thiết lập trò chơi
+        function setupGame(app)
+    % Đặt lại số lượt đoán
+    app.GuessCount = app.MaxGuesses;
+    app.updateGuessCountDisplay();
+    app.GuessLimitLabel.Text = ''; 
+    app.HintsTextArea.Value = {''}; % Khởi tạo lại HintsTextArea với chuỗi trống
+    app.HintLabel.Value = ''; % Khởi tạo lại HintLabel
+    app.HintsGivenCount = 0; % Đặt lại số lượng gợi ý đã hiển thị
+    app.HintStep = 1;  % Khởi tạo lại HintStep về 1 khi bắt đầu trò chơi
+app.Image.Visible = 'off'; % Ẩn ảnh ngay khi khởi động ứng dụng
+    % Xác định khoảng đoán và số lượt đoán theo mức độ
+    switch app.MysticPathDropDown.Value
+        case 'Tân Binh Bí Ẩn'
+            app.RangeMin = 1;
+            app.RangeMax = 100;
+            app.MaxGuesses = 15; % Cấp độ dễ với nhiều lượt đoán
+        case 'Thợ Săn Manh Mối'
+            app.RangeMin = 1;
+            app.RangeMax = 1000;
+            app.MaxGuesses = 12; % Cấp độ trung bình
+        case 'Thám Tử Lão Luyện'
+            app.RangeMin = 1;
+            app.RangeMax = 10000;
+            app.MaxGuesses = 10; % Cấp độ khó
+        case 'Bậc Thầy Toán Linh'
+            app.RangeMin = 1;
+            app.RangeMax = 99999;
+            app.MaxGuesses = 7; % Cấp độ chuyên gia với ít lượt đoán
+    end
+
+    % Cập nhật label giới hạn lượt đoán
+    app.GuessLimitLabel.Text = sprintf('Giới hạn đoán: %d lượt', app.MaxGuesses);
+
+    % Tạo số bí ẩn ngẫu nhiên
+    app.SecretNumber = randi([app.RangeMin, app.RangeMax]);
+
+    % Cập nhật thông báo hướng dẫn
+    app.GuessLimitLabel.Text = sprintf('Hãy đoán một số từ %d đến %d', app.RangeMin, app.RangeMax);
+  % Phát nhạc nền
+            playBackgroundMusic(app);
+
+        end
+        
+    end
+    
+
+    % Callbacks that handle component events
+    methods (Access = private)
+
+        % Button pushed function: ReigniteQuestButton
+        function ReigniteQuestButtonPushed(app, event)
+                   app.setupGame();  % Gọi hàm setupGame để khởi tạo lại trò chơi
+                   app.GuessnowButton.Enable = 'on'; % Kích hoạt lại nút đoán số
+                   app.ReigniteQuestButton.Enable = 'off'; % Vô hiệu hóa nút bắt đầu lại sau khi tái thiết lập
+      
+        end
+
+        % Callback function: GuessnowButton, HintLabel
+        function ButtononPushed(app, event)
+             guessedNumber = app.EnteranumberEditField.Value;
+
+    % Kiểm tra nếu số nhập vào hợp lệ (không phải NaN và nằm trong khoảng cho phép)
+    if isnan(guessedNumber) || guessedNumber < app.RangeMin || guessedNumber > app.RangeMax
+        app.updateHintsDisplay('Số nhập vào không hợp lệ. Vui lòng nhập lại trong phạm vi hợp lệ.');
+        return;
+    end
+
+    % Kiểm tra nếu lượt đoán là 1, 3, 5, 7, 9 để cập nhật gợi ý
+    if mod(app.GuessCount, 2) ~= 0 && app.HintsGivenCount < app.MaxGuesses
+        app.updateHintDetails();  % Cập nhật gợi ý mới
+        app.HintsGivenCount = app.HintsGivenCount + 1;
+    end
+
+    % Giảm số lượt đoán còn lại
+    app.GuessCount = app.GuessCount - 1; 
+    app.updateGuessCountDisplay(); % Cập nhật số lượt đoán
+
+    % Phản hồi khi đoán sai hoặc gần đúng
+    if guessedNumber < app.SecretNumber
+        distance = app.SecretNumber - guessedNumber;
+        if distance <= 10
+            response = 'Bạn đang ở rất gần vùng bí ẩn! Chỉ cần chút nữa thôi!';
+        elseif distance <= 30
+            response = 'Bạn đang tiếp cận. Hãy tiến thêm vào cõi số!';
+        else
+            response = 'Con số ẩn giấu còn xa. Bạn cần đi sâu vào hành trình!';
+        end
+        app.playSoundEffect('wrong_guess.wav');
+        app.updateHintsDisplay(response); % Hiển thị phản hồi
+    elseif guessedNumber > app.SecretNumber
+        distance = guessedNumber - app.SecretNumber;
+        if distance <= 10
+            response = 'Gần tới đích rồi! Số bí ẩn ngay gần đó!';
+        elseif distance <= 30
+            response = 'Sắp đạt tới! Nhưng bạn vẫn hơi cao hơn số bí ẩn.';
+        else
+            response = 'Bạn đã đi quá xa. Hãy quay lại và tìm trong vùng thấp hơn.';
+        end
+        app.playSoundEffect('wrong_guess.wav');
+        app.updateHintsDisplay(response); % Hiển thị phản hồi
+    else
+        % Khi đoán đúng số bí ẩn
+        response = 'Chúc mừng! Bạn đã giải mã được số bí ẩn!';
+         app.playSoundEffect('victory.mp3');
+        app.GuessLimitLabel.Text = response; % Hiển thị thông báo trong GuessLimitLabel
+        % Kiểm tra nếu ảnh chưa được hiển thị
+if strcmp(app.Image.Visible, 'off')
+    app.Image.Visible = 'on';  % Đảm bảo hình ảnh hiển thị
+end
+        app.GuessnowButton.Enable = 'off'; % Vô hiệu hóa nút khi đoán đúng
+        app.ReigniteQuestButton.Enable = 'on'; % Cho phép bắt đầu lại vòng mới
+        return;
+    end
+
+    % Kiểm tra nếu hết lượt đoán
+    if app.GuessCount <= 0
+        finalHint = sprintf('Cuộc phiêu lưu kết thúc! Số bí ẩn là %d.', app.SecretNumber);
+          app.playSoundEffect('game_over.wav');
+        app.GuessLimitLabel.Text = finalHint; % Hiển thị thông báo trong GuessLimitLabel
+        app.GuessnowButton.Enable = 'off'; % Vô hiệu hóa nút khi trò chơi kết thúc
+        app.ReigniteQuestButton.Enable = 'on'; % Cho phép bắt đầu lại vòng mới
+    elseif app.GuessCount <= 3
+        % Còn ít lượt đoán
+        lowGuessResponse = 'Nhanh lên, thời gian không còn nhiều!';
+                  app.playSoundEffect('ambaonguy.mp3');
+        app.updateHintsDisplay(lowGuessResponse); % Cập nhật thông điệp khi còn ít lượt
+    end
+
+        end
+    end
+
+    % Component initialization
+    methods (Access = private)
+
+        % Create UIFigure and components
+        function createComponents(app)
+
+            % Get the file path for locating images
+            pathToMLAPP = fileparts(mfilename('fullpath'));
+
+            % Create UIFigure and hide until all components are created
+            app.UIFigure = uifigure('Visible', 'off');
+            app.UIFigure.Position = [100 100 640 480];
+            app.UIFigure.Name = 'MATLAB App';
+
+            % Create MYSTICNUMBERSLabel
+            app.MYSTICNUMBERSLabel = uilabel(app.UIFigure);
+            app.MYSTICNUMBERSLabel.HorizontalAlignment = 'center';
+            app.MYSTICNUMBERSLabel.FontName = 'Algerian';
+            app.MYSTICNUMBERSLabel.FontSize = 18;
+            app.MYSTICNUMBERSLabel.FontWeight = 'bold';
+            app.MYSTICNUMBERSLabel.FontColor = [1 0 0];
+            app.MYSTICNUMBERSLabel.Position = [36 391 570 80];
+            app.MYSTICNUMBERSLabel.Text = ' MYSTIC NUMBERS';
+
+            % Create EnteranumberEditFieldLabel
+            app.EnteranumberEditFieldLabel = uilabel(app.UIFigure);
+            app.EnteranumberEditFieldLabel.HorizontalAlignment = 'center';
+            app.EnteranumberEditFieldLabel.VerticalAlignment = 'bottom';
+            app.EnteranumberEditFieldLabel.Position = [271 293 100 22];
+            app.EnteranumberEditFieldLabel.Text = 'Enter a number!';
+
+            % Create EnteranumberEditField
+            app.EnteranumberEditField = uieditfield(app.UIFigure, 'numeric');
+            app.EnteranumberEditField.Position = [271 262 100 22];
+
+            % Create GuessnowButton
+            app.GuessnowButton = uibutton(app.UIFigure, 'push');
+            app.GuessnowButton.ButtonPushedFcn = createCallbackFcn(app, @ButtononPushed, true);
+            app.GuessnowButton.Position = [271 230 100 22];
+            app.GuessnowButton.Text = 'Guess now!';
+
+            % Create ReigniteQuestButton
+            app.ReigniteQuestButton = uibutton(app.UIFigure, 'push');
+            app.ReigniteQuestButton.ButtonPushedFcn = createCallbackFcn(app, @ReigniteQuestButtonPushed, true);
+            app.ReigniteQuestButton.VerticalAlignment = 'top';
+            app.ReigniteQuestButton.FontColor = [0 0.4471 0.7412];
+            app.ReigniteQuestButton.Position = [119 339 100 22];
+            app.ReigniteQuestButton.Text = 'Reignite Quest';
+
+            % Create MysticPathDropDownLabel
+            app.MysticPathDropDownLabel = uilabel(app.UIFigure);
+            app.MysticPathDropDownLabel.HorizontalAlignment = 'right';
+            app.MysticPathDropDownLabel.FontWeight = 'bold';
+            app.MysticPathDropDownLabel.Interpreter = 'tex';
+            app.MysticPathDropDownLabel.Position = [1 370 82 22];
+            app.MysticPathDropDownLabel.Text = 'Mystic Path:';
+
+            % Create MysticPathDropDown
+            app.MysticPathDropDown = uidropdown(app.UIFigure);
+            app.MysticPathDropDown.Items = {'Tân Binh Bí Ẩn', 'Thợ Săn Manh Mối', 'Thám Tử Lão Luyện', 'Bậc Thầy Toán Linh'};
+            app.MysticPathDropDown.FontName = 'Courier New';
+            app.MysticPathDropDown.Position = [87 370 163 22];
+            app.MysticPathDropDown.Value = 'Tân Binh Bí Ẩn';
+
+            % Create RemainingguessesLabel
+            app.RemainingguessesLabel = uilabel(app.UIFigure);
+            app.RemainingguessesLabel.HorizontalAlignment = 'center';
+            app.RemainingguessesLabel.Position = [255 197 132 22];
+            app.RemainingguessesLabel.Text = 'Remaining guesses';
+
+            % Create HintsTextArea
+            app.HintsTextArea = uitextarea(app.UIFigure);
+            app.HintsTextArea.FontColor = [0.149 0.149 0.149];
+            app.HintsTextArea.Position = [406 49 200 270];
+
+            % Create GuessLimitLabel
+            app.GuessLimitLabel = uilabel(app.UIFigure);
+            app.GuessLimitLabel.FontName = 'ZapfDingbats';
+            app.GuessLimitLabel.Position = [271 370 325 22];
+            app.GuessLimitLabel.Text = 'Press ''Reignite Quest'' to Begin Your Adventure Once More!';
+
+            % Create HintLabel
+            app.HintLabel = uitextarea(app.UIFigure);
+            app.HintLabel.ValueChangedFcn = createCallbackFcn(app, @ButtononPushed, true);
+            app.HintLabel.Position = [36 49 202 270];
+
+            % Create Image
+            app.Image = uiimage(app.UIFigure);
+            app.Image.HorizontalAlignment = 'left';
+            app.Image.VerticalAlignment = 'top';
+            app.Image.Position = [271 82 100 100];
+            app.Image.ImageSource = fullfile(pathToMLAPP, 'winner.png');
+
+            % Create NguynNgcPhcN23DCDK059D23CQDK01NButton
+            app.NguynNgcPhcN23DCDK059D23CQDK01NButton = uibutton(app.UIFigure, 'push');
+            app.NguynNgcPhcN23DCDK059D23CQDK01NButton.FontName = 'Chiller';
+            app.NguynNgcPhcN23DCDK059D23CQDK01NButton.FontWeight = 'bold';
+            app.NguynNgcPhcN23DCDK059D23CQDK01NButton.FontColor = [0.8 0.8 0.8];
+            app.NguynNgcPhcN23DCDK059D23CQDK01NButton.Position = [209 16 224 22];
+            app.NguynNgcPhcN23DCDK059D23CQDK01NButton.Text = 'Nguyễn Ngọc Phúc / N23DCDK059 / D23CQDK01-N';
+
+            % Show the figure after all components are created
+            app.UIFigure.Visible = 'on';
+        end
+    end
+
+    % App creation and deletion
+    methods (Access = public)
+
+        % Construct app
+        function app = MysticNumbers
+
+            % Create UIFigure and components
+            createComponents(app)
+
+            % Register the app with App Designer
+            registerApp(app, app.UIFigure)
+
+            if nargout == 0
+                clear app
+            end
+        end
+
+        % Code that executes before app deletion
+        function delete(app)
+
+            % Delete UIFigure when app is deleted
+            delete(app.UIFigure)
+        end
+    end
+end
